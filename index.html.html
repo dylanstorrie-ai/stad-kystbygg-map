@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stad Kystbygg AS – Prosjektkart</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ocean: #0d2033;
+    --pine: #1a3a2a;
+    --fjord: #1b4f72;
+    --ice: #e8f4f8;
+    --birch: #f5efe6;
+    --amber: #d4870a;
+    --copper: #b45309;
+    --moss: #4a7c59;
+    --light-text: #f0ebe3;
+    --panel-bg: rgba(13, 32, 51, 0.96);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: var(--ocean);
+    color: var(--light-text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: linear-gradient(135deg, var(--ocean) 0%, #0f2d45 100%);
+    padding: 14px 24px;
+    border-bottom: 2px solid var(--amber);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 1000;
+  }
+
+  .header-left h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.45rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    color: #fff;
+  }
+
+  .header-left h1 span {
+    color: var(--amber);
+  }
+
+  .header-left p {
+    font-size: 0.75rem;
+    color: #8fadc7;
+    margin-top: 2px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .header-stats {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--amber);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    color: #8fadc7;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+  }
+
+  .main-area {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  #map {
+    flex: 1;
+    background: #0e2030;
+  }
+
+  /* Override Leaflet tiles for a fjord-like feel */
+  .leaflet-tile-pane { filter: saturate(0.7) brightness(0.9); }
+
+  /* Sidebar */
+  .sidebar {
+    width: 320px;
+    background: var(--panel-bg);
+    border-left: 1px solid #1e4060;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .sidebar-header {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid #1e4060;
+    background: rgba(0,0,0,0.2);
+  }
+
+  .sidebar-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    color: #fff;
+  }
+
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 5px 10px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.06);
+    color: #aac0d4;
+    border-color: #1e4060;
+  }
+
+  .filter-btn:hover, .filter-btn.active {
+    background: var(--amber);
+    color: var(--ocean);
+    border-color: var(--amber);
+  }
+
+  .projects-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 6px 0;
+  }
+
+  .projects-list::-webkit-scrollbar { width: 5px; }
+  .projects-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+  .projects-list::-webkit-scrollbar-thumb { background: #2a5070; border-radius: 3px; }
+
+  .project-item {
+    padding: 11px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .project-item:hover {
+    background: rgba(212, 135, 10, 0.12);
+  }
+
+  .project-item.selected {
+    background: rgba(212, 135, 10, 0.2);
+    border-left: 3px solid var(--amber);
+  }
+
+  .project-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .project-info h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #e8f0f8;
+    line-height: 1.3;
+  }
+
+  .project-info .meta {
+    font-size: 0.72rem;
+    color: #7a9ab5;
+    margin-top: 2px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .meta-tag {
+    background: rgba(255,255,255,0.06);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
+  /* Detail panel */
+  .detail-panel {
+    display: none;
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: 300px;
+    background: var(--panel-bg);
+    border: 1px solid var(--amber);
+    border-radius: 4px;
+    padding: 18px;
+    z-index: 900;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+
+  .detail-panel.visible { display: block; }
+
+  .detail-panel h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem;
+    color: #fff;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(212,135,10,0.4);
+  }
+
+  .detail-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    align-items: flex-start;
+  }
+
+  .detail-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--amber);
+    width: 80px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+
+  .detail-value {
+    font-size: 0.82rem;
+    color: #c5d8e8;
+    line-height: 1.4;
+  }
+
+  .close-detail {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: #7a9ab5;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px 4px;
+    transition: color 0.2s;
+  }
+  .close-detail:hover { color: #fff; }
+
+  /* Legend */
+  .legend {
+    position: absolute;
+    bottom: 20px;
+    right: 340px;
+    background: var(--panel-bg);
+    border: 1px solid #1e4060;
+    border-radius: 4px;
+    padding: 12px 14px;
+    z-index: 900;
+    font-size: 0.72rem;
+  }
+
+  .legend h4 {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #7a9ab5;
+    margin-bottom: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+    color: #aac0d4;
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Custom marker styles */
+  .custom-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    transition: transform 0.2s;
+    cursor: pointer;
+  }
+
+  /* Leaflet popup override */
+  .leaflet-popup-content-wrapper {
+    background: var(--panel-bg);
+    border: 1px solid var(--amber);
+    border-radius: 4px;
+    color: var(--light-text);
+    font-family: 'Source Sans 3', sans-serif;
+  }
+
+  .leaflet-popup-tip { background: var(--panel-bg); }
+  .leaflet-popup-close-button { color: #7a9ab5 !important; }
+
+  .popup-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  .popup-meta {
+    font-size: 0.75rem;
+    color: #aac0d4;
+    line-height: 1.5;
+  }
+
+  .popup-role {
+    display: inline-block;
+    margin-top: 5px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .role-lead { background: rgba(212,135,10,0.25); color: var(--amber); }
+  .role-partner { background: rgba(74,124,89,0.25); color: #6dbf80; }
+
+  /* No results */
+  .no-results {
+    padding: 20px 18px;
+    text-align: center;
+    color: #5a7a95;
+    font-size: 0.82rem;
+  }
+
+  .county-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #4a7090;
+    margin-top: 14px;
+    margin-bottom: 4px;
+    padding: 0 18px;
+    font-weight: 600;
+  }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Stad Kystbygg <span>AS</span></h1>
+    <p>Prosjektkart · Stadlandet, Vestland</p>
+  </div>
+  <div class="header-stats">
+    <div class="stat">
+      <div class="stat-num" id="stat-total">60+</div>
+      <div class="stat-label">Prosjekter</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="stat-counties">3</div>
+      <div class="stat-label">Fylker</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">2016</div>
+      <div class="stat-label">Grunnlagt</div>
+    </div>
+  </div>
+</header>
+
+<div class="main-area">
+  <div id="map"></div>
+
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>Alle prosjekter</h2>
+      <div class="filter-row">
+        <button class="filter-btn active" data-filter="all">Alle</button>
+        <button class="filter-btn" data-filter="dagsturhytte">Dagsturhytter</button>
+        <button class="filter-btn" data-filter="bygg">Bygg</button>
+        <button class="filter-btn" data-filter="lead">Hovudentreprenør</button>
+        <button class="filter-btn" data-filter="partner">Partner</button>
+      </div>
+    </div>
+    <div class="projects-list" id="projects-list"></div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend" id="legend">
+  <h4>Forklaring</h4>
+  <div class="legend-item"><div class="legend-dot" style="background:#d4870a"></div> Hovudentreprenør</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4a9e64"></div> Partner / Underleverandør</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3a7fc1;border:2px solid #fff"></div> Hovudkontor (Stadlandet)</div>
+</div>
+
+<script>
+// ==================== DATA ====================
+const projects = [
+  // HQ
+  {
+    id: 'hq',
+    name: 'Hovudkontor – Stad Næringspark',
+    county: 'Vestland',
+    municipality: 'Stad kommune',
+    lat: 62.188,
+    lng: 5.121,
+    type: 'hq',
+    role: 'lead',
+    category: 'bygg',
+    year: '2016–',
+    description: 'Eige industribygg på 450 m² på Stadlandet, der alle element og modulbygg vert produserte. Grunnlagget for all aktivitet i Stad Kystbygg.',
+    contract: 'Eigenregi'
+  },
+  // =========== DAGSTURHYTTER – HORDALAND-DEL AV VESTLAND (35 hytter, Stad Kystbygg hovudentreprenør) ===========
+  {
+    id: 'dh-alver-1', name: 'Dagsturhytte – Alver (Lindås)', county: 'Vestland', municipality: 'Alver', lat: 60.735, lng: 5.09, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020', description: 'Første hytte i hordalandsdelen av Vestland. Alver fekk tre dagsturhytter.', contract: '~NOK 30 mill (totalt 35 hytter Hordaland)'
+  },
+  {
+    id: 'dh-alver-2', name: 'Dagsturhytte – Alver (Meland)', county: 'Vestland', municipality: 'Alver', lat: 60.66, lng: 5.1, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020', description: 'Andre dagsturhytte i Alver kommune (tidlegare Meland).', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-alver-3', name: 'Dagsturhytte – Alver (Radøy)', county: 'Vestland', municipality: 'Alver', lat: 60.61, lng: 4.97, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020', description: 'Tredje dagsturhytte i Alver (tidlegare Radøy).', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-austrheim', name: 'Dagsturhytte – Austrheim, Vardetangen', county: 'Vestland', municipality: 'Austrheim', lat: 60.748, lng: 4.855, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020', description: 'Montert 21. september 2020. Ei av dei første hyttene på plass i Nordhordland.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-masfjorden', name: 'Dagsturhytte – Masfjorden, Grøttneset', county: 'Vestland', municipality: 'Masfjorden', lat: 60.865, lng: 5.43, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020', description: 'Montert 27. september 2020.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-fedje', name: 'Dagsturhytte – Fedje, Aurihopen', county: 'Vestland', municipality: 'Fedje', lat: 60.769, lng: 4.712, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020', description: 'Montert 27. september 2020. Fedje er ei øy utan fast vegsamband.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-bjornafjorden', name: 'Dagsturhytte – Bjørnafjorden (Os), Borgafjellet', county: 'Vestland', municipality: 'Bjørnafjorden', lat: 60.185, lng: 5.47, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020', description: 'Montert oktober 2020.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-bjornafjorden-2', name: 'Dagsturhytte – Bjørnafjorden (Fusa)', county: 'Vestland', municipality: 'Bjørnafjorden', lat: 60.25, lng: 5.95, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020–21', description: 'Andre hytte i samanslåtte Bjørnafjorden (tidlegare Fusa).', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-austevoll', name: 'Dagsturhytte Adlesi – Austevoll, Loddo', county: 'Vestland', municipality: 'Austevoll', lat: 60.087, lng: 5.26, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021', description: 'Hytta heiter Adlesi og ligg på toppen av fjellet Loddo på Huftarøy. Opna av fylkesordførar.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-oygarden', name: 'Dagsturhytte – Øygarden', county: 'Vestland', municipality: 'Øygarden', lat: 60.555, lng: 4.82, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020–21', description: 'Dagsturhytte i Øygarden kommune (tidl. Fjell, Sund og Øygarden).', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-vaksdal', name: 'Dagsturhytte – Vaksdal', county: 'Vestland', municipality: 'Vaksdal', lat: 60.475, lng: 5.735, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020–21', description: 'Dagsturhytte i Vaksdal kommune.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-sveio', name: 'Dagsturhytte – Sveio', county: 'Vestland', municipality: 'Sveio', lat: 59.66, lng: 5.345, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020–21', description: 'Dagsturhytte i Sveio, sørlegaste kommunen i Vestland.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-samnanger', name: 'Dagsturhytte – Samnanger', county: 'Vestland', municipality: 'Samnanger', lat: 60.365, lng: 5.87, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020–21', description: 'Dagsturhytte i Samnanger.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-kvam', name: 'Dagsturhytte – Kvam', county: 'Vestland', municipality: 'Kvam', lat: 60.39, lng: 6.175, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2020–21', description: 'Dagsturhytte i Kvam herad.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-bomlo', name: 'Dagsturhytte – Bømlo', county: 'Vestland', municipality: 'Bømlo', lat: 59.775, lng: 5.225, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021', description: 'Dagsturhytte på Bømlo.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-bergen', name: 'Dagsturhytte Ådnabu – Bergen, Arna', county: 'Vestland', municipality: 'Bergen', lat: 60.415, lng: 5.527, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2024', description: 'Dagsturhytta Ådnabu opna 7. februar 2024 i Arna, Bergen. Teikna av ROJO arkitekter og bygd av Stad Kystbygg. Finansiert av Vestland fylkeskommune, Sparebankstiftelsen, Eviny og spelemidlar.', contract: 'Bergen kommune / Vestland fylkeskommune'
+  },
+  {
+    id: 'dh-voss', name: 'Dagsturhytte – Voss', county: 'Vestland', municipality: 'Voss', lat: 60.628, lng: 6.42, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Voss herad.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-osteroy', name: 'Dagsturhytte – Osterøy', county: 'Vestland', municipality: 'Osterøy', lat: 60.532, lng: 5.515, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021', description: 'Dagsturhytte i Osterøy.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-askoy', name: 'Dagsturhytte – Askøy', county: 'Vestland', municipality: 'Askøy', lat: 60.437, lng: 5.173, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021', description: 'Dagsturhytte i Askøy.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-ullensvang', name: 'Dagsturhytte – Ullensvang', county: 'Vestland', municipality: 'Ullensvang', lat: 60.31, lng: 6.655, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Ullensvang (inkl. tidl. Odda).', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-etne', name: 'Dagsturhytte – Etne', county: 'Vestland', municipality: 'Etne', lat: 59.665, lng: 5.946, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Etne.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-tysnes', name: 'Dagsturhytte – Tysnes', county: 'Vestland', municipality: 'Tysnes', lat: 60.025, lng: 5.605, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Tysnes.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-stord', name: 'Dagsturhytte – Stord', county: 'Vestland', municipality: 'Stord', lat: 59.785, lng: 5.472, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Stord.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-fitjar', name: 'Dagsturhytte – Fitjar', county: 'Vestland', municipality: 'Fitjar', lat: 59.92, lng: 5.325, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Fitjar.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-modalen', name: 'Dagsturhytte – Modalen', county: 'Vestland', municipality: 'Modalen', lat: 60.833, lng: 5.906, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Modalen.', contract: 'Del av Hordaland-kontrakt'
+  },
+  {
+    id: 'dh-gulen', name: 'Dagsturhytte – Gulen', county: 'Vestland', municipality: 'Gulen', lat: 60.977, lng: 5.295, type: 'dagsturhytte', role: 'lead', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Gulen.', contract: 'Del av Hordaland-kontrakt'
+  },
+
+  // =========== DAGSTURHYTTER – ROGALAND (23 kommunar, Stad Kystbygg + Lyngstad Bygg) ===========
+  {
+    id: 'dh-sandnes', name: 'Dagsturhytte Søsterhytta – Sandnes, Dalsvågen', county: 'Rogaland', municipality: 'Sandnes', lat: 58.856, lng: 5.74, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021', description: 'Første dagsturhytte i Rogaland. Opna av varaordførar Pål Morten Borgli. Teikna av Rojo arkitekter; bygg og montering av Lyngstad Bygg og Stad Kystbygg.', contract: '~NOK 25 mill (totalt Rogaland)'
+  },
+  {
+    id: 'dh-stavanger', name: 'Dagsturhytte – Stavanger', county: 'Rogaland', municipality: 'Stavanger', lat: 58.97, lng: 5.73, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Stavanger kommune.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-sola', name: 'Dagsturhytte – Sola', county: 'Rogaland', municipality: 'Sola', lat: 58.893, lng: 5.627, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Sola.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-randaberg', name: 'Dagsturhytte – Randaberg', county: 'Rogaland', municipality: 'Randaberg', lat: 59.001, lng: 5.613, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Randaberg.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-karmoy', name: 'Dagsturhytte – Karmøy', county: 'Rogaland', municipality: 'Karmøy', lat: 59.29, lng: 5.29, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Karmøy.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-haugesund', name: 'Dagsturhytte – Haugesund', county: 'Rogaland', municipality: 'Haugesund', lat: 59.414, lng: 5.268, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Haugesund.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-bokn', name: 'Dagsturhytte – Bokn', county: 'Rogaland', municipality: 'Bokn', lat: 59.224, lng: 5.422, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Bokn.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-tysvær', name: 'Dagsturhytte – Tysvær', county: 'Rogaland', municipality: 'Tysvær', lat: 59.45, lng: 5.582, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Tysvær.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-vindafjord', name: 'Dagsturhytte – Vindafjord', county: 'Rogaland', municipality: 'Vindafjord', lat: 59.494, lng: 5.833, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Vindafjord.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-sauda', name: 'Dagsturhytte – Saudasjøen/Sauda', county: 'Rogaland', municipality: 'Sauda', lat: 59.649, lng: 6.354, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Sauda.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-strand', name: 'Dagsturhytte – Strand', county: 'Rogaland', municipality: 'Strand', lat: 59.06, lng: 6.022, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Strand.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-hjelmeland', name: 'Dagsturhytte – Hjelmeland', county: 'Rogaland', municipality: 'Hjelmeland', lat: 59.234, lng: 6.179, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Hjelmeland.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-gjesdal', name: 'Dagsturhytte – Gjesdal', county: 'Rogaland', municipality: 'Gjesdal', lat: 58.806, lng: 6.027, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Gjesdal.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-time', name: 'Dagsturhytte – Time', county: 'Rogaland', municipality: 'Time', lat: 58.735, lng: 5.866, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Time.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-klepp', name: 'Dagsturhytte – Klepp', county: 'Rogaland', municipality: 'Klepp', lat: 58.778, lng: 5.634, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Klepp.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-haa', name: 'Dagsturhytte – Hå', county: 'Rogaland', municipality: 'Hå', lat: 58.568, lng: 5.693, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Hå.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-eigersund', name: 'Dagsturhytte – Eigersund', county: 'Rogaland', municipality: 'Eigersund', lat: 58.462, lng: 6.0, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Eigersund.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-bjerkreim', name: 'Dagsturhytte – Bjerkreim', county: 'Rogaland', municipality: 'Bjerkreim', lat: 58.647, lng: 6.066, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Bjerkreim.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-lund', name: 'Dagsturhytte – Lund', county: 'Rogaland', municipality: 'Lund', lat: 58.401, lng: 6.488, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Lund.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-sokndal', name: 'Dagsturhytte – Sokndal', county: 'Rogaland', municipality: 'Sokndal', lat: 58.313, lng: 6.347, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Sokndal (sørlegaste i Rogaland).', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-kvitsoy', name: 'Dagsturhytte – Kvitsøy', county: 'Rogaland', municipality: 'Kvitsøy', lat: 59.071, lng: 5.411, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i Kvitsøy.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-rennesoy', name: 'Dagsturhytte – Rennesøy', county: 'Rogaland', municipality: 'Stavanger (tidl. Rennesøy)', lat: 59.113, lng: 5.54, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i tidlegare Rennesøy, no del av Stavanger.', contract: 'Del av Rogaland-kontrakt'
+  },
+  {
+    id: 'dh-finnoy', name: 'Dagsturhytte – Finnøy', county: 'Rogaland', municipality: 'Stavanger (tidl. Finnøy)', lat: 59.162, lng: 5.733, type: 'dagsturhytte', role: 'partner', category: 'dagsturhytte', year: '2021–22', description: 'Dagsturhytte i tidlegare Finnøy, no del av Stavanger.', contract: 'Del av Rogaland-kontrakt'
+  },
+
+  // =========== ANDRE PROSJEKTER ===========
+  {
+    id: 'volda-toalett', name: 'Toalettmodul – Bussterminal Volda', county: 'Møre og Romsdal', municipality: 'Volda', lat: 62.148, lng: 6.073, type: 'modul', role: 'lead', category: 'bygg', year: '~2022', description: 'Toalettmodul produsert av Stad Kystbygg og montert ved bussterminalen i Volda. Vist som referanse på heimesida.', contract: 'Bestilling frå Volda kommune'
+  },
+  {
+    id: 'stadlandet-enebolig', name: 'Enebolig – Stadlandet (elementbygg)', county: 'Vestland', municipality: 'Stad', lat: 62.175, lng: 5.095, type: 'element', role: 'lead', category: 'bygg', year: '2018–', description: 'Første hus bygd med element i eigen produksjonshall på Stadlandet. Startpunktet for satsinga på prefabrikkerte elementhus.', contract: 'Privat'
+  },
+  {
+    id: 'borgunvag-naust', name: 'Naust – Borgunvåg (grindverk)', county: 'Vestland', municipality: 'Stad', lat: 62.165, lng: 5.11, type: 'grindverk', role: 'lead', category: 'bygg', year: '2018–20', description: 'Tradisjonelt grindverksbygg (naust) i Borgunvåg, Stad. Stad Kystbygg er spesialistar på grindverk, ein tusenårgammal byggetradisjon på Vestlandet.', contract: 'Privat bestilling'
+  },
+  {
+    id: 'mikrohus', name: 'Mikrohus til sals – Stadlandet', county: 'Vestland', municipality: 'Stad', lat: 62.196, lng: 5.14, type: 'modul', role: 'lead', category: 'bygg', year: '2024–25', description: 'Under 30 m² modulhus med full standard. Store vindusflater og moderne løysingar. Pris: 2 100 000 inkl. mva.', contract: 'Salsobjekt (eige regi)'
+  },
+  {
+    id: 'brehytte', name: 'Brehytte – Vestland (elementbygg)', county: 'Vestland', municipality: 'Vestland', lat: 61.82, lng: 6.87, type: 'element', role: 'lead', category: 'bygg', year: '2020–22', description: 'Brehytte bygd som elementhus. Vist som referanse på stadkystbygg.no. Lokasjon er representativ for breområda i Vestland.', contract: 'Oppdragsbygging'
+  },
+  {
+    id: 'padlehuker', name: 'Padlehuker – Vestlandskysten', county: 'Vestland', municipality: 'Vestland (kyst)', lat: 61.5, lng: 4.9, type: 'modul', role: 'lead', category: 'bygg', year: '2022–24', description: 'Fleire padlehuker produsert som modulbygg for kystfriluftslivet. Vist som referanse på heimesida.', contract: 'Friluftsråd / kommunar'
+  },
+  {
+    id: 'sauna', name: 'Badstove – Modul', county: 'Vestland', municipality: 'Stad', lat: 62.18, lng: 5.13, type: 'modul', role: 'lead', category: 'bygg', year: '2022–23', description: 'Modulbadstove produsert av Stad Kystbygg. Del av eit aukande produktsortiment.', contract: 'Privat bestilling'
+  },
+];
+
+// ==================== MAP INIT ====================
+const map = L.map('map', {
+  center: [61.0, 6.5],
+  zoom: 6,
+  zoomControl: false
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  maxZoom: 17
+}).addTo(map);
+
+L.control.zoom({ position: 'topleft' }).addTo(map);
+
+// Color scheme
+const COLOR = {
+  lead: '#d4870a',
+  partner: '#4a9e64',
+  hq: '#3a7fc1'
+};
+
+function getColor(p) {
+  if (p.type === 'hq') return COLOR.hq;
+  return p.role === 'lead' ? COLOR.lead : COLOR.partner;
+}
+
+function getSize(p) {
+  if (p.type === 'hq') return 16;
+  if (p.type === 'dagsturhytte') return 10;
+  return 13;
+}
+
+// Create SVG circle markers
+function createMarker(p) {
+  const color = getColor(p);
+  const size = getSize(p);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size*2+4}" height="${size*2+4}">
+    <circle cx="${size+2}" cy="${size+2}" r="${size}" fill="${color}" fill-opacity="0.9" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+    ${p.type==='hq' ? `<circle cx="${size+2}" cy="${size+2}" r="${size*0.4}" fill="rgba(255,255,255,0.8)"/>` : ''}
+  </svg>`;
+  const icon = L.divIcon({
+    html: svg,
+    className: '',
+    iconSize: [size*2+4, size*2+4],
+    iconAnchor: [size+2, size+2]
+  });
+  const marker = L.marker([p.lat, p.lng], { icon });
+  marker.on('click', () => showDetail(p));
+  const roleLabel = p.role === 'lead' ? 'Hovudentreprenør' : 'Partner';
+  marker.bindTooltip(`<div class="popup-title">${p.name}</div>
+    <div class="popup-meta">${p.municipality} · ${p.county}<br>${p.year}<br>
+    <span class="popup-role ${p.role==='lead'?'role-lead':'role-partner'}">${roleLabel}</span></div>`, {
+    direction: 'top', offset: [0, -size-4],
+    className: 'custom-tooltip'
+  });
+  return marker;
+}
+
+// Layer group
+const markerGroup = L.layerGroup().addTo(map);
+const markerMap = {};
+
+projects.forEach(p => {
+  const m = createMarker(p);
+  markerMap[p.id] = m;
+  markerGroup.addLayer(m);
+});
+
+// ==================== DETAIL PANEL ====================
+function showDetail(p) {
+  const panel = document.getElementById('detail-panel');
+  panel.innerHTML = `
+    <button class="close-detail" onclick="document.getElementById('detail-panel').classList.remove('visible')">✕</button>
+    <h3>${p.name}</h3>
+    <div class="detail-row"><span class="detail-label">Fylke</span><span class="detail-value">${p.county}</span></div>
+    <div class="detail-row"><span class="detail-label">Kommune</span><span class="detail-value">${p.municipality}</span></div>
+    <div class="detail-row"><span class="detail-label">År</span><span class="detail-value">${p.year}</span></div>
+    <div class="detail-row"><span class="detail-label">Rolle</span><span class="detail-value">${p.role==='lead'?'Hovudentreprenør':'Partner / Underleverandør'}</span></div>
+    <div class="detail-row"><span class="detail-label">Kontrakt</span><span class="detail-value">${p.contract}</span></div>
+    <div class="detail-row"><span class="detail-label">Om</span><span class="detail-value">${p.description}</span></div>
+  `;
+  panel.classList.add('visible');
+  map.setView([p.lat, p.lng], Math.max(map.getZoom(), 9), {animate: true});
+
+  // Highlight sidebar item
+  document.querySelectorAll('.project-item').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('item-' + p.id);
+  if (el) {
+    el.classList.add('selected');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// Create panel placeholder
+const panelEl = document.createElement('div');
+panelEl.id = 'detail-panel';
+panelEl.className = 'detail-panel';
+document.querySelector('.main-area').style.position = 'relative';
+document.querySelector('.main-area').appendChild(panelEl);
+
+// ==================== SIDEBAR ====================
+let currentFilter = 'all';
+
+function buildList(filter) {
+  const list = document.getElementById('projects-list');
+  list.innerHTML = '';
+
+  const filtered = projects.filter(p => {
+    if (filter === 'all') return true;
+    if (filter === 'dagsturhytte') return p.category === 'dagsturhytte';
+    if (filter === 'bygg') return p.category === 'bygg';
+    if (filter === 'lead') return p.role === 'lead';
+    if (filter === 'partner') return p.role === 'partner';
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="no-results">Ingen prosjekter funne.</div>';
+    return;
+  }
+
+  // Group by county
+  const byCounty = {};
+  filtered.forEach(p => {
+    if (!byCounty[p.county]) byCounty[p.county] = [];
+    byCounty[p.county].push(p);
+  });
+
+  const countyOrder = ['Vestland', 'Rogaland', 'Møre og Romsdal'];
+  countyOrder.forEach(county => {
+    if (!byCounty[county]) return;
+    const label = document.createElement('div');
+    label.className = 'county-label';
+    label.textContent = county;
+    list.appendChild(label);
+
+    byCounty[county].forEach(p => {
+      const el = document.createElement('div');
+      el.className = 'project-item';
+      el.id = 'item-' + p.id;
+      el.innerHTML = `
+        <div class="project-dot" style="background:${getColor(p)}"></div>
+        <div class="project-info">
+          <h3>${p.name}</h3>
+          <div class="meta">
+            <span class="meta-tag">${p.municipality}</span>
+            <span class="meta-tag">${p.year}</span>
+            <span class="meta-tag">${p.role === 'lead' ? 'Hovud' : 'Partner'}</span>
+          </div>
+        </div>
+      `;
+      el.addEventListener('click', () => showDetail(p));
+      list.appendChild(el);
+    });
+  });
+
+  // Update marker visibility
+  projects.forEach(p => {
+    const m = markerMap[p.id];
+    if (!m) return;
+    const visible = filtered.find(f => f.id === p.id);
+    if (visible) {
+      if (!markerGroup.hasLayer(m)) markerGroup.addLayer(m);
+    } else {
+      markerGroup.removeLayer(m);
+    }
+  });
+
+  document.getElementById('stat-total').textContent = filtered.length === projects.length ? '60+' : filtered.length;
+}
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    buildList(currentFilter);
+  });
+});
+
+buildList('all');
+
+// Adjust legend position
+function adjustLegend() {
+  const sidebar = document.querySelector('.sidebar');
+  const legend = document.getElementById('legend');
+  legend.style.right = (sidebar.offsetWidth + 20) + 'px';
+}
+adjustLegend();
+window.addEventListener('resize', adjustLegend);
+</script>
+</body>
+</html>
